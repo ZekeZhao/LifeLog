@@ -883,62 +883,60 @@ struct Index {
         .alignItems(VerticalAlign.Center)
         .padding({ left: 24, right: 24, top: this.statusBarHeight + 56, bottom: 56 })
 
-        List({ space: 16 }) {
-          ListItem() {
-            Row() {
-              Row({ space: 4 }) {
-                Text('<')
-                  .fontSize(20)
-                  .fontColor(AppColors.ACCENT)
-                  .padding(8)
-                  .onClick(async () => {
-                    this.vibrateLight()
-                    await this.trendVm?.goToPrevious()
-                    this.refreshTrendChart()
-                    this.refreshBodyFatChart()
-                  })
+        Row() {
+          Row({ space: 4 }) {
+            Text('<')
+              .fontSize(20)
+              .fontColor(AppColors.ACCENT)
+              .padding(8)
+              .onClick(async () => {
+                this.vibrateLight()
+                await this.trendVm?.goToPrevious()
+                this.refreshTrendChart()
+                this.refreshBodyFatChart()
+              })
 
-                Text(this.trendVm?.getRangeTitle() ?? '')
-                  .fontSize(16)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor(AppColors.TEXT_PRIMARY)
+            Text(this.trendVm?.getRangeTitle() ?? '')
+              .fontSize(16)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(AppColors.TEXT_PRIMARY)
 
-                Text('>')
-                  .fontSize(20)
-                  .fontColor(this.trendVm?.isAtLatest() ? AppColors.INPUT_BORDER : AppColors.ACCENT)
-                  .padding(8)
-                  .onClick(async () => {
-                    if (this.trendVm?.isAtLatest()) return
-                    this.vibrateLight()
-                    await this.trendVm?.goToNext()
-                    this.refreshTrendChart()
-                    this.refreshBodyFatChart()
-                  })
-              }
-              .alignItems(VerticalAlign.Center)
-
-              Row({ space: 8 }) {
-                ForEach(this.trendVm?.getPeriodOptions() ?? [], (option: string, index: number) => {
-                  Button(option)
-                    .fontSize(14)
-                    .fontColor(this.trendVm?.getPeriodIndex() === index ? '#FFFFFF' : AppColors.TEXT_SECONDARY)
-                    .backgroundColor(this.trendVm?.getPeriodIndex() === index ? AppColors.ACCENT : AppColors.CARD)
-                    .width(48)
-                    .height(32)
-                    .borderRadius(16)
-                    .onClick(async () => {
-                      await this.trendVm?.setPeriodByIndex(index)
-                      this.refreshTrendChart()
-                      this.refreshBodyFatChart()
-                    })
-                })
-              }
-            }
-            .width('88%')
-            .justifyContent(FlexAlign.SpaceBetween)
+            Text('>')
+              .fontSize(20)
+              .fontColor(this.trendVm?.isAtLatest() ? AppColors.INPUT_BORDER : AppColors.ACCENT)
+              .padding(8)
+              .onClick(async () => {
+                if (this.trendVm?.isAtLatest()) return
+                this.vibrateLight()
+                await this.trendVm?.goToNext()
+                this.refreshTrendChart()
+                this.refreshBodyFatChart()
+              })
           }
-          .padding({ top: 0, bottom: 8 })
+          .alignItems(VerticalAlign.Center)
 
+          Row({ space: 8 }) {
+            ForEach(this.trendVm?.getPeriodOptions() ?? [], (option: string, index: number) => {
+              Button(option)
+                .fontSize(14)
+                .fontColor(this.trendVm?.getPeriodIndex() === index ? '#FFFFFF' : AppColors.TEXT_SECONDARY)
+                .backgroundColor(this.trendVm?.getPeriodIndex() === index ? AppColors.ACCENT : AppColors.CARD)
+                .width(48)
+                .height(32)
+                .borderRadius(16)
+                .onClick(async () => {
+                  await this.trendVm?.setPeriodByIndex(index)
+                  this.refreshTrendChart()
+                  this.refreshBodyFatChart()
+                })
+            })
+          }
+        }
+        .width('100%')
+        .justifyContent(FlexAlign.SpaceBetween)
+        .padding({ left: 16, right: 16, bottom: 20 })
+
+        List({ space: 16 }) {
           ListItem() {
             Column({ space: 12 }) {
               Row() {
