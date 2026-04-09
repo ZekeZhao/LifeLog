@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sed -i '1099s/bubblePadding = 8/bubblePadding = 10/' /Users/zeke/DevEcoStudioProjects/LifeLog/entry/src/main/ets/pages/Index.ets)",
+      "Bash(sed -i '1101s/bubbleHeight = 28/bubbleHeight = 32/' /Users/zeke/DevEcoStudioProjects/LifeLog/entry/src/main/ets/pages/Index.ets)",
+      "Read(//tmp/**)",
+      "Bash(python3:*)",
+      "Bash(hvigor assembleDebug)"
+    ]
+  }
+}

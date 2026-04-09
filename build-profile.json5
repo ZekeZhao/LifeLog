@@ -1,0 +1,56 @@
+{
+  "app": {
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "/Users/zeke/.ohos/config/default_LifeLog_xFShICyb8cRceNNeKMjKHYg4KfWHWNvRv_giVMamDJM=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001B1726C1AD6184A048FC950E6213DE9505EC73EA8D332763C249968C57ED87666CBEAC4F0AD34D8B",
+          "profile": "/Users/zeke/.ohos/config/default_LifeLog_xFShICyb8cRceNNeKMjKHYg4KfWHWNvRv_giVMamDJM=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "/Users/zeke/.ohos/config/default_LifeLog_xFShICyb8cRceNNeKMjKHYg4KfWHWNvRv_giVMamDJM=.p12",
+          "storePassword": "0000001BCDB92D7E42383CC25ED9D3039B2662429C58D24116A87B25FA99A3058864EA22AD50DFE05A8474"
+        }
+      }
+    ],
+    "products": [
+      {
+        "name": "default",
+        "signingConfig": "default",
+        "targetSdkVersion": "6.0.2(22)",
+        "compatibleSdkVersion": "6.0.2(22)",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": {
+          "strictMode": {
+            "caseSensitiveCheck": true,
+            "useNormalizedOHMUrl": true
+          }
+        }
+      }
+    ],
+    "buildModeSet": [
+      {
+        "name": "debug",
+      },
+      {
+        "name": "release"
+      }
+    ]
+  },
+  "modules": [
+    {
+      "name": "entry",
+      "srcPath": "./entry",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+# HarmonyOS build outputs
+*.hap
+*.hsp
+*.app
+*.so
+
+# DevEco Studio
+build/
+.gen/
+.idea/
+*.iml
+.local.properties
+entry/.cxx/
+entry/.preview/
+entry/build/
+entry/.cache/
+
+# Hvigor cache and outputs
+.hvigor/cache/
+.hvigor/outputs/
+.hvigor/report/
+
+# Node and ohpm
+node_modules/
+oh_modules/.ohpm/
+
+# Log files
+*.log
+
+# macOS
+.DS_Store
+
+# Test
+entry/src/ohosTest/
+entry/src/test/

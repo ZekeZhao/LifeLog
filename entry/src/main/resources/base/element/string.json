@@ -1,0 +1,20 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "LifeLog 健康生活记录"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "健康生活记录应用"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "LifeLog"
+    },
+    {
+      "name": "app_name",
+      "value": "LifeLog"
+    }
+  ]
+}
