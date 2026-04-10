@@ -1147,10 +1147,11 @@ struct Index {
     context.fillStyle = AppColors.TEXT_SECONDARY
     context.font = '26px sans-serif'
     context.textAlign = 'right'
+    context.textBaseline = 'middle'
     for (let i = 0; i <= 4; i++) {
       const weight = bounds.maxWeight - ((bounds.maxWeight - bounds.minWeight) / 4) * i
       const y = padding + (chartHeight / 4) * i
-      context.fillText(weight.toFixed(1), padding - 12, y + 3)
+      context.fillText(weight.toFixed(1), padding - 12, y)
     }
 
     // 绘制动画线条 - 根据进度绘制部分线段
@@ -1223,6 +1224,7 @@ struct Index {
     context.fillStyle = AppColors.TEXT_SECONDARY
     context.font = '26px sans-serif'
     context.textAlign = 'center'
+    context.textBaseline = 'alphabetic'
     for (let i = 0; i < chartData.length; i++) {
       if (i % labelInterval === 0 || i === chartData.length - 1) {
         const point = chartData[i]
@@ -1304,8 +1306,6 @@ struct Index {
         context.textAlign = 'center'
         context.textBaseline = 'middle'
         context.fillText(bubbleText, x, bubbleY + bubbleHeight / 2)
-
-        context.restore()
       }
     }
   }
@@ -1514,10 +1514,11 @@ struct Index {
     context.fillStyle = AppColors.TEXT_SECONDARY
     context.font = '26px sans-serif'
     context.textAlign = 'right'
+    context.textBaseline = 'middle'
     for (let i = 0; i <= 4; i++) {
       const bodyFat = bounds.maxWeight - ((bounds.maxWeight - bounds.minWeight) / 4) * i
       const y = padding + (chartHeight / 4) * i
-      context.fillText(bodyFat.toFixed(1), padding - 12, y + 3)
+      context.fillText(bodyFat.toFixed(1), padding - 12, y)
     }
 
     // 绘制动画线条
@@ -1588,6 +1589,7 @@ struct Index {
     context.fillStyle = AppColors.TEXT_SECONDARY
     context.font = '26px sans-serif'
     context.textAlign = 'center'
+    context.textBaseline = 'alphabetic'
     for (let i = 0; i < chartData.length; i++) {
       if (i % labelInterval === 0 || i === chartData.length - 1) {
         const point = chartData[i]
@@ -1657,8 +1659,6 @@ struct Index {
         context.textAlign = 'center'
         context.textBaseline = 'middle'
         context.fillText(bubbleText, x, bubbleY + bubbleHeight / 2)
-
-        context.restore()
       }
     }
   }
