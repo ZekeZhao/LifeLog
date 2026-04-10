@@ -4,10 +4,34 @@ import { HeatmapViewModel, HeatmapWeek, HeatmapCell } from '../viewmodel/Heatmap
 import { TrendViewModel } from '../viewmodel/TrendViewModel'
 import { DailyRecord, createEmptyRecord } from '../model/DailyRecord'
 import { MealSegment } from '../view/MealSegment'
-import { promptAction, Animator, AnimatorResult } from '@kit.ArkUI'
+import { promptAction, Animator, AnimatorResult, SymbolGlyphModifier } from '@kit.ArkUI'
 import { window } from '@kit.ArkUI'
-
 import { vibrator } from '@kit.SensorServiceKit'
+import { HdsNavigation, HdsNavigationTitleMode, HdsTabs, HdsTabsController, hdsMaterial, ScrollEffectType } from '@kit.UIDesignKit'
+
+interface TabBarItem {
+  label: string
+  symbolGlyph: SymbolGlyphModifier
+  symbolGlyph1: SymbolGlyphModifier
+}
+
+const TAB_CONFIG: TabBarItem[] = [
+  {
+    label: '今日记录',
+    symbolGlyph: new SymbolGlyphModifier($r('sys.symbol.square_and_pencil')).fontColor([AppColors.TEXT_SECONDARY]),
+    symbolGlyph1: new SymbolGlyphModifier($r('sys.symbol.square_and_pencil')).fontColor([AppColors.ACCENT])
+  },
+  {
+    label: '热力图',
+    symbolGlyph: new SymbolGlyphModifier($r('sys.symbol.flame')).fontColor([AppColors.TEXT_SECONDARY]),
+    symbolGlyph1: new SymbolGlyphModifier($r('sys.symbol.flame')).fontColor([AppColors.ACCENT])
+  },
+  {
+    label: '趋势统计',
+    symbolGlyph: new SymbolGlyphModifier($r('sys.symbol.star')).fontColor([AppColors.TEXT_SECONDARY]),
+    symbolGlyph1: new SymbolGlyphModifier($r('sys.symbol.star')).fontColor([AppColors.ACCENT])
+  }
+]
 
 @Entry
 @ComponentV2
@@ -30,6 +54,10 @@ struct Index {
   private bubbleAnimator: AnimatorResult | null = null
   private bodyFatChartAnimator: AnimatorResult | null = null
   private bodyFatBubbleAnimator: AnimatorResult | null = null
+  private hdsTabsController: HdsTabsController = new HdsTabsController()
+  private todayScroller: Scroller = new Scroller()
+  private heatmapScroller: Scroller = new Scroller()
+  private trendScroller: Scroller = new Scroller()
 
   // 测试工具相关状态
   @Local testButtonVisible: boolean = false  // 按钮是否显示
@@ -86,43 +114,100 @@ struct Index {
       this.refreshBodyFatChart()
     }
     this.trendVm.loadTrend('week')
+    window.getLastWindow(getContext(this)).then(win => {
+      const area = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM)
+      this.statusBarHeight = px2vp(area.topRect.height)
+    }).catch(() => {})
   }
 
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
-      Tabs({ barPosition: BarPosition.End, index: this.currentTab }) {
-        TabContent() {
-          this.TodayPage()
-        }
-        .tabBar('')
-
-        TabContent() {
-          this.HeatmapPage()
-        }
-        .tabBar('')
-
-        TabContent() {
-          this.TrendPage()
-        }
-        .tabBar('')
-      }
-      .barHeight(0)
-      .barMode(BarMode.Fixed)
-      .onChange((index: number) => {
-        this.currentTab = index
-        // 连续点击趋势统计tab 10次才显示测试按钮
-        if (index === 2) {
-          this.trendTabClickCount++
-          if (this.trendTabClickCount >= 10) {
-            this.testButtonVisible = true
+      HdsNavigation() {
+        HdsTabs({ controller: this.hdsTabsController }) {
+          TabContent() {
+            this.TodayPage()
           }
-        } else {
-          this.trendTabClickCount = 0
-        }
-      })
-      .animationDuration(300)
+          .tabBar(new BottomTabBarStyle({
+            normal: TAB_CONFIG[0].symbolGlyph,
+            selected: TAB_CONFIG[0].symbolGlyph1
+          }, TAB_CONFIG[0].label)
+            .labelStyle({
+              unselectedColor: AppColors.TEXT_SECONDARY,
+              selectedColor: AppColors.ACCENT
+            }))
 
-      this.CustomTabBar()
+          TabContent() {
+            this.HeatmapPage()
+          }
+          .tabBar(new BottomTabBarStyle({
+            normal: TAB_CONFIG[1].symbolGlyph,
+            selected: TAB_CONFIG[1].symbolGlyph1
+          }, TAB_CONFIG[1].label)
+            .labelStyle({
+              unselectedColor: AppColors.TEXT_SECONDARY,
+              selectedColor: AppColors.ACCENT
+            }))
+
+          TabContent() {
+            this.TrendPage()
+          }
+          .tabBar(new BottomTabBarStyle({
+            normal: TAB_CONFIG[2].symbolGlyph,
+            selected: TAB_CONFIG[2].symbolGlyph1
+          }, TAB_CONFIG[2].label)
+            .labelStyle({
+              unselectedColor: AppColors.TEXT_SECONDARY,
+              selectedColor: AppColors.ACCENT
+            }))
+        }
+        .barOverlap(true)
+        .vertical(false)
+        .barPosition(BarPosition.End)
+        .barFloatingStyle({
+          barBottomMargin: 28,
+          systemMaterialEffect: {
+            materialType: hdsMaterial.MaterialType.ADAPTIVE,
+            materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+          }
+        })
+        .onChange((index: number) => {
+          this.currentTab = index
+          if (index === 2) {
+            this.trendTabClickCount++
+            if (this.trendTabClickCount >= 10) {
+              this.testButtonVisible = true
+            }
+          } else {
+            this.trendTabClickCount = 0
+          }
+        })
+        .animationDuration(300)
+      }
+      .mode(NavigationMode.Stack)
+      .titleBar({
+        content: {
+          title: {
+            mainTitle: this.currentTab === 0 ? this.randomTitle : (this.currentTab === 1 ? '热力图' : '趋势统计')
+          }
+        },
+        style: {
+          scrollEffectOpts: {
+            enableScrollEffect: true,
+            scrollEffectType: ScrollEffectType.GRADIENT_BLUR
+          },
+          systemMaterialEffect: {
+            materialType: hdsMaterial.MaterialType.ADAPTIVE,
+            materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+          }
+        },
+        avoidLayoutSafeArea: true,
+        enableComponentSafeArea: true
+      })
+      .hideBackButton(true)
+      .titleMode(HdsNavigationTitleMode.MINI)
+      .backgroundColor($r('app.color.page_bg'))
+      .width('100%')
+      .height('100%')
 
       // 测试工具弹窗（放在外层Stack，使TabBar也被模糊）
       if (this.showTestTools) {
@@ -326,7 +411,7 @@ struct Index {
             Button('关闭')
               .fontSize(14)
               .fontColor(AppColors.TEXT_SECONDARY)
-              .backgroundColor(AppColors.BG)
+              .backgroundColor($r('app.color.page_bg'))
               .layoutWeight(1)
               .height(40)
               .borderRadius(20)
@@ -378,74 +463,9 @@ struct Index {
   }
 
   @Builder
-  CustomTabBar() {
-    Column() {
-      Row({ space: 0 }) {
-        ForEach(['今日记录', '热力图', '趋势统计'], (title: string, index: number) => {
-          Column({ space: 6 }) {
-            Text(title)
-              .fontSize(12)
-              .fontColor(this.currentTab === index ? AppColors.ACCENT : AppColors.TEXT_SECONDARY)
-              .fontWeight(this.currentTab === index ? FontWeight.Medium : FontWeight.Normal)
-
-            Stack() {
-              Circle({ width: 4, height: 4 })
-                .fill(AppColors.ACCENT)
-            }
-            .width(4)
-            .height(4)
-            .scale({ x: this.currentTab === index ? 1 : 0, y: this.currentTab === index ? 1 : 0 })
-            .animation({
-              duration: 250,
-              curve: Curve.EaseInOut
-            })
-          }
-          .layoutWeight(1)
-          .height(56)
-          .justifyContent(FlexAlign.Center)
-          .onClick(() => {
-            this.currentTab = index
-            // 连续点击趋势统计tab 10次才显示测试按钮
-            if (index === 2) {
-              this.trendTabClickCount++
-              if (this.trendTabClickCount >= 10) {
-                this.testButtonVisible = true
-              }
-            } else {
-              this.trendTabClickCount = 0
-            }
-          })
-        })
-      }
-      .width('92%')
-      .height(56)
-      .backgroundColor(AppColors.CARD)
-      .borderRadius(28)
-      .shadow({
-        radius: 12,
-        color: 'rgba(0,0,0,0.08)',
-        offsetY: 4
-      })
-      .margin({ bottom: 48 })
-    }
-    .width('100%')
-    .height(80)
-    .justifyContent(FlexAlign.End)
-    .backgroundColor('transparent')
-    .zIndex(0)
-  }
-
-  @Builder
   TodayPage() {
     Column() {
-      Text(this.randomTitle)
-        .fontSize(26)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(AppColors.TEXT_PRIMARY)
-        .width('100%')
-        .padding({ left: 24, right: 24, top: this.statusBarHeight + 56, bottom: 4 })
-
-      Scroll() {
+      Scroll(this.todayScroller) {
         Column({ space: 0 }) {
           Column({ space: 4 }) {
             Text(this.vm?.getTodayDisplay() ?? '')
@@ -459,7 +479,7 @@ struct Index {
           }
           .width('100%')
           .alignItems(HorizontalAlign.Start)
-          .padding({ left: 28, right: 28, top: 0, bottom: 20 })
+          .padding({ left: 28, right: 28, top: 24, bottom: 20 })
 
           Column({ space: 20 }) {
             Row() {
@@ -581,12 +601,12 @@ struct Index {
       }
       .scrollable(ScrollDirection.Vertical)
       .edgeEffect(EdgeEffect.Spring)
-      .padding({ top: 0 })
+      .clipContent(ContentClipMode.SAFE_AREA)
       .layoutWeight(1)
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(AppColors.BG)
+    .backgroundColor($r('app.color.page_bg'))
   }
 
   @Builder
@@ -627,15 +647,8 @@ struct Index {
 
   @Builder
   HeatmapPage() {
-    Stack() {
+    Scroll(this.heatmapScroller) {
       Column() {
-        Text('热力图')
-          .fontSize(26)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(AppColors.TEXT_PRIMARY)
-          .width('100%')
-          .padding({ left: 24, right: 24, top: this.statusBarHeight + 56, bottom: 66 })
-
         Row() {
           Row({ space: 4 }) {
             Text('<')
@@ -676,7 +689,7 @@ struct Index {
         }
         .width('100%')
         .justifyContent(FlexAlign.SpaceBetween)
-        .padding({ left: 24, right: 24, top: 0, bottom: 20 })
+        .padding({ left: 24, right: 24, top: 24, bottom: 20 })
 
         Row({ space: 8 }) {
           Text('清淡')
@@ -808,15 +821,15 @@ struct Index {
           offsetY: AppDimens.SHADOW_OFFSET_Y
         })
 
-        Blank().layoutWeight(1)
+        Column().height(120)
       }
       .width('100%')
-      .height('100%')
-      .backgroundColor(AppColors.BG)
-
     }
+    .edgeEffect(EdgeEffect.Spring)
+    .clipContent(ContentClipMode.SAFE_AREA)
     .width('100%')
     .height('100%')
+    .backgroundColor($r('app.color.page_bg'))
   }
 
   @Builder
@@ -862,13 +875,10 @@ struct Index {
 
   @Builder
   TrendPage() {
-    Column() {
+    Scroll(this.trendScroller) {
+      Column() {
         Row() {
-          Text('趋势统计')
-            .fontSize(26)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(AppColors.TEXT_PRIMARY)
-            .layoutWeight(1)
+          Blank().layoutWeight(1)
 
           if (this.testButtonVisible) {
             Circle({ width: 14, height: 14 })
@@ -881,7 +891,7 @@ struct Index {
         }
         .width('100%')
         .alignItems(VerticalAlign.Center)
-        .padding({ left: 24, right: 24, top: this.statusBarHeight + 56, bottom: 56 })
+        .padding({ left: 24, right: 24, top: 16, bottom: 16 })
 
         Row() {
           Row({ space: 4 }) {
@@ -936,182 +946,174 @@ struct Index {
         .justifyContent(FlexAlign.SpaceBetween)
         .padding({ left: 16, right: 16, bottom: 20 })
 
-        List({ space: 16 }) {
-          ListItem() {
-            Column({ space: 12 }) {
-              Row() {
-                Text('体重趋势')
-                  .fontSize(17)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor(AppColors.TEXT_PRIMARY)
+        Column({ space: 12 }) {
+          Row() {
+            Text('体重趋势')
+              .fontSize(17)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(AppColors.TEXT_PRIMARY)
 
-                Text(this.trendVm?.getRangeTitle() ?? '')
-                  .fontSize(13)
-                  .fontColor(AppColors.TEXT_SECONDARY)
-              }
-              .width('100%')
-              .justifyContent(FlexAlign.SpaceBetween)
+            Text(this.trendVm?.getRangeTitle() ?? '')
+              .fontSize(13)
+              .fontColor(AppColors.TEXT_SECONDARY)
+          }
+          .width('100%')
+          .justifyContent(FlexAlign.SpaceBetween)
 
-              Stack() {
-                Canvas(this.trendChartContext)
-                  .width('100%')
-                  .height(200)
-                  .backgroundColor(AppColors.BG)
-                  .borderRadius(AppDimens.RADIUS_MD)
-                  .onReady(() => {
-                    this.refreshTrendChart()
-                  })
-                  .onClick((event) => {
-                    this.handleChartClick(event.x, event.y)
-                  })
-              }
+          Stack() {
+            Canvas(this.trendChartContext)
               .width('100%')
               .height(200)
+              .backgroundColor($r('app.color.page_bg'))
               .borderRadius(AppDimens.RADIUS_MD)
-              .clip(true)
-            }
-            .width('88%')
-            .padding(20)
-            .backgroundColor(AppColors.CARD)
-            .borderRadius(AppDimens.RADIUS_LG)
-            .shadow({
-              radius: AppDimens.SHADOW_RADIUS,
-              color: AppDimens.SHADOW_COLOR,
-              offsetY: AppDimens.SHADOW_OFFSET_Y
-            })
+              .onReady(() => {
+                this.refreshTrendChart()
+              })
+              .onClick((event) => {
+                this.handleChartClick(event.x, event.y)
+              })
           }
+          .width('100%')
+          .height(200)
+          .borderRadius(AppDimens.RADIUS_MD)
+          .clip(true)
+        }
+        .width('88%')
+        .padding(20)
+        .backgroundColor(AppColors.CARD)
+        .borderRadius(AppDimens.RADIUS_LG)
+        .shadow({
+          radius: AppDimens.SHADOW_RADIUS,
+          color: AppDimens.SHADOW_COLOR,
+          offsetY: AppDimens.SHADOW_OFFSET_Y
+        })
+        .margin({ bottom: 16 })
 
-          ListItem() {
-            Column({ space: 12 }) {
-              Row() {
-                Text('体脂趋势')
-                  .fontSize(17)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor(AppColors.TEXT_PRIMARY)
+        Column({ space: 12 }) {
+          Row() {
+            Text('体脂趋势')
+              .fontSize(17)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(AppColors.TEXT_PRIMARY)
 
-                Text(this.trendVm?.getRangeTitle() ?? '')
-                  .fontSize(13)
-                  .fontColor(AppColors.TEXT_SECONDARY)
-              }
-              .width('100%')
-              .justifyContent(FlexAlign.SpaceBetween)
+            Text(this.trendVm?.getRangeTitle() ?? '')
+              .fontSize(13)
+              .fontColor(AppColors.TEXT_SECONDARY)
+          }
+          .width('100%')
+          .justifyContent(FlexAlign.SpaceBetween)
 
-              Stack() {
-                Canvas(this.bodyFatChartContext)
-                  .width('100%')
-                  .height(200)
-                  .backgroundColor(AppColors.BG)
-                  .borderRadius(AppDimens.RADIUS_MD)
-                  .onReady(() => {
-                    this.refreshBodyFatChart()
-                  })
-                  .onClick((event) => {
-                    this.handleBodyFatChartClick(event.x, event.y)
-                  })
-              }
+          Stack() {
+            Canvas(this.bodyFatChartContext)
               .width('100%')
               .height(200)
+              .backgroundColor($r('app.color.page_bg'))
               .borderRadius(AppDimens.RADIUS_MD)
-              .clip(true)
-            }
-            .width('88%')
-            .padding(20)
-            .backgroundColor(AppColors.CARD)
-            .borderRadius(AppDimens.RADIUS_LG)
-            .shadow({
-              radius: AppDimens.SHADOW_RADIUS,
-              color: AppDimens.SHADOW_COLOR,
-              offsetY: AppDimens.SHADOW_OFFSET_Y
-            })
+              .onReady(() => {
+                this.refreshBodyFatChart()
+              })
+              .onClick((event) => {
+                this.handleBodyFatChartClick(event.x, event.y)
+              })
           }
+          .width('100%')
+          .height(200)
+          .borderRadius(AppDimens.RADIUS_MD)
+          .clip(true)
+        }
+        .width('88%')
+        .padding(20)
+        .backgroundColor(AppColors.CARD)
+        .borderRadius(AppDimens.RADIUS_LG)
+        .shadow({
+          radius: AppDimens.SHADOW_RADIUS,
+          color: AppDimens.SHADOW_COLOR,
+          offsetY: AppDimens.SHADOW_OFFSET_Y
+        })
+        .margin({ bottom: 16 })
 
-          ListItem() {
-            Column({ space: 16 }) {
-              Text('健康统计')
-                .fontSize(17)
+        Column({ space: 16 }) {
+          Text('健康统计')
+            .fontSize(17)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(AppColors.TEXT_PRIMARY)
+            .alignSelf(ItemAlign.Start)
+
+          Row() {
+            Column({ space: 4 }) {
+              Text('饮食健康率')
+                .fontSize(13)
+                .fontColor(AppColors.TEXT_SECONDARY)
+
+              Text(`${this.trendVm?.stats.healthyRate ?? 0}%`)
+                .fontSize(28)
+                .fontWeight(FontWeight.Bold)
+                .fontColor(AppColors.ACCENT)
+            }
+
+            Column({ space: 4 }) {
+              Text('记录天数')
+                .fontSize(13)
+                .fontColor(AppColors.TEXT_SECONDARY)
+
+              Text(`${this.trendVm?.stats.totalDays ?? 0}天`)
+                .fontSize(28)
                 .fontWeight(FontWeight.Bold)
                 .fontColor(AppColors.TEXT_PRIMARY)
-                .alignSelf(ItemAlign.Start)
-
-              Row() {
-                Column({ space: 4 }) {
-                  Text('饮食健康率')
-                    .fontSize(13)
-                    .fontColor(AppColors.TEXT_SECONDARY)
-
-                  Text(`${this.trendVm?.stats.healthyRate ?? 0}%`)
-                    .fontSize(28)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor(AppColors.ACCENT)
-                }
-
-                Column({ space: 4 }) {
-                  Text('记录天数')
-                    .fontSize(13)
-                    .fontColor(AppColors.TEXT_SECONDARY)
-
-                  Text(`${this.trendVm?.stats.totalDays ?? 0}天`)
-                    .fontSize(28)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor(AppColors.TEXT_PRIMARY)
-                }
-              }
-              .width('100%')
-              .justifyContent(FlexAlign.SpaceAround)
-
-              Divider().color(AppColors.DIVIDER)
-
-              Row() {
-                Column({ space: 4 }) {
-                  Text('平均体重')
-                    .fontSize(13)
-                    .fontColor(AppColors.TEXT_SECONDARY)
-
-                  Text(this.trendVm?.stats.avgWeight !== null
-                    ? `${this.trendVm?.stats.avgWeight.toFixed(1)} kg` : '--')
-                    .fontSize(20)
-                    .fontWeight(FontWeight.Medium)
-                    .fontColor(AppColors.TEXT_PRIMARY)
-                }
-
-                Column({ space: 4 }) {
-                  Text('体重变化')
-                    .fontSize(13)
-                    .fontColor(AppColors.TEXT_SECONDARY)
-
-                  Text(this.getWeightChangeText(this.trendVm?.stats.weightChange ?? null))
-                    .fontSize(20)
-                    .fontWeight(FontWeight.Medium)
-                    .fontColor(this.getWeightChangeColor(this.trendVm?.stats.weightChange ?? null))
-                }
-              }
-              .width('100%')
-              .justifyContent(FlexAlign.SpaceAround)
             }
-            .width('88%')
-            .padding(20)
-            .backgroundColor(AppColors.CARD)
-            .borderRadius(AppDimens.RADIUS_LG)
-            .shadow({
-              radius: AppDimens.SHADOW_RADIUS,
-              color: AppDimens.SHADOW_COLOR,
-              offsetY: AppDimens.SHADOW_OFFSET_Y
-            })
           }
+          .width('100%')
+          .justifyContent(FlexAlign.SpaceAround)
 
-          ListItem() {
-            Column().height(48)
+          Divider().color(AppColors.DIVIDER)
+
+          Row() {
+            Column({ space: 4 }) {
+              Text('平均体重')
+                .fontSize(13)
+                .fontColor(AppColors.TEXT_SECONDARY)
+
+              Text(this.trendVm?.stats.avgWeight !== null
+                ? `${this.trendVm?.stats.avgWeight.toFixed(1)} kg` : '--')
+                .fontSize(20)
+                .fontWeight(FontWeight.Medium)
+                .fontColor(AppColors.TEXT_PRIMARY)
+            }
+
+            Column({ space: 4 }) {
+              Text('体重变化')
+                .fontSize(13)
+                .fontColor(AppColors.TEXT_SECONDARY)
+
+              Text(this.getWeightChangeText(this.trendVm?.stats.weightChange ?? null))
+                .fontSize(20)
+                .fontWeight(FontWeight.Medium)
+                .fontColor(this.getWeightChangeColor(this.trendVm?.stats.weightChange ?? null))
+            }
           }
+          .width('100%')
+          .justifyContent(FlexAlign.SpaceAround)
         }
-        .listDirection(Axis.Vertical)
-        .edgeEffect(EdgeEffect.Spring)
-        .padding({ top: 0 })
-        .layoutWeight(1)
-        .alignListItem(ListItemAlign.Center)
+        .width('88%')
+        .padding(20)
+        .backgroundColor(AppColors.CARD)
+        .borderRadius(AppDimens.RADIUS_LG)
+        .shadow({
+          radius: AppDimens.SHADOW_RADIUS,
+          color: AppDimens.SHADOW_COLOR,
+          offsetY: AppDimens.SHADOW_OFFSET_Y
+        })
+
+        Column().height(120)
       }
+      .width('100%')
+      .alignItems(HorizontalAlign.Center)
+    }
+    .edgeEffect(EdgeEffect.Spring)
+    .clipContent(ContentClipMode.SAFE_AREA)
     .width('100%')
     .height('100%')
-    .backgroundColor(AppColors.BG)
+    .backgroundColor($r('app.color.page_bg'))
   }
 
   private drawTrendChart(): void {
@@ -1833,7 +1835,7 @@ struct Index {
             .fontSize(15)
             .fontColor(AppColors.TEXT_PRIMARY)
             .placeholderColor(AppColors.TEXT_SECONDARY)
-            .backgroundColor(AppColors.BG)
+            .backgroundColor($r('app.color.page_bg'))
             .height(44)
             .borderRadius(8)
             .padding({ left: 12, right: 12 })
@@ -1847,7 +1849,7 @@ struct Index {
           Button('取消')
             .fontSize(14)
             .fontColor(AppColors.TEXT_SECONDARY)
-            .backgroundColor(AppColors.BG)
+            .backgroundColor($r('app.color.page_bg'))
             .layoutWeight(1)
             .height(44)
             .borderRadius(12)
@@ -1933,7 +1935,7 @@ struct Index {
                 .type(InputType.NUMBER_DECIMAL)
                 .fontSize(15)
                 .fontColor(AppColors.TEXT_PRIMARY)
-                .backgroundColor(AppColors.BG)
+                .backgroundColor($r('app.color.page_bg'))
                 .height(44)
                 .borderRadius(8)
                 .textAlign(TextAlign.Center)
@@ -1951,7 +1953,7 @@ struct Index {
                 .type(InputType.NUMBER_DECIMAL)
                 .fontSize(15)
                 .fontColor(AppColors.TEXT_PRIMARY)
-                .backgroundColor(AppColors.BG)
+                .backgroundColor($r('app.color.page_bg'))
                 .height(44)
                 .borderRadius(8)
                 .textAlign(TextAlign.Center)
@@ -1968,7 +1970,7 @@ struct Index {
             Button('取消')
               .fontSize(14)
               .fontColor(AppColors.TEXT_SECONDARY)
-              .backgroundColor(AppColors.BG)
+              .backgroundColor($r('app.color.page_bg'))
               .layoutWeight(1)
               .height(44)
               .borderRadius(12)
@@ -2175,7 +2177,7 @@ struct Index {
             .type(InputType.NUMBER_DECIMAL)
             .fontSize(15)
             .fontColor(AppColors.TEXT_PRIMARY)
-            .backgroundColor(AppColors.BG)
+            .backgroundColor($r('app.color.page_bg'))
             .height(44)
             .borderRadius(8)
             .textAlign(TextAlign.Center)
@@ -2193,7 +2195,7 @@ struct Index {
             .type(InputType.NUMBER_DECIMAL)
             .fontSize(15)
             .fontColor(AppColors.TEXT_PRIMARY)
-            .backgroundColor(AppColors.BG)
+            .backgroundColor($r('app.color.page_bg'))
             .height(44)
             .borderRadius(8)
             .textAlign(TextAlign.Center)
@@ -2210,7 +2212,7 @@ struct Index {
         Button('取消')
           .fontSize(14)
           .fontColor(AppColors.TEXT_SECONDARY)
-          .backgroundColor(AppColors.BG)
+          .backgroundColor($r('app.color.page_bg'))
           .layoutWeight(1)
           .height(44)
           .borderRadius(12)
