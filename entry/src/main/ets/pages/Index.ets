@@ -5,7 +5,6 @@ import { TrendViewModel } from '../viewmodel/TrendViewModel'
 import { DailyRecord, createEmptyRecord } from '../model/DailyRecord'
 import { MealSegment } from '../view/MealSegment'
 import { promptAction, Animator, AnimatorResult, SymbolGlyphModifier } from '@kit.ArkUI'
-import { window } from '@kit.ArkUI'
 import { vibrator } from '@kit.SensorServiceKit'
 import { HdsNavigation, HdsNavigationTitleMode, HdsTabs, HdsTabsController, hdsMaterial, ScrollEffectType } from '@kit.UIDesignKit'
 
@@ -40,7 +39,6 @@ struct Index {
   @Local vm: TodayViewModel | null = null
   @Local heatmapVm: HeatmapViewModel | null = null
   @Local trendVm: TrendViewModel | null = null
-  @Local statusBarHeight: number = 44
   @Local randomTitle: string = ''
   private trendChartContext: CanvasRenderingContext2D = new CanvasRenderingContext2D()
   private bodyFatChartContext: CanvasRenderingContext2D = new CanvasRenderingContext2D()
@@ -114,10 +112,26 @@ struct Index {
       this.refreshBodyFatChart()
     }
     this.trendVm.loadTrend('week')
-    window.getLastWindow(getContext(this)).then(win => {
-      const area = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM)
-      this.statusBarHeight = px2vp(area.topRect.height)
-    }).catch(() => {})
+  }
+
+  private getNavigationTitle(): string {
+    if (this.currentTab === 0) {
+      return this.randomTitle
+    }
+    if (this.currentTab === 1) {
+      return '热力图'
+    }
+    return '趋势统计'
+  }
+
+  private getCurrentBottomBuilderHeight(): number {
+    if (this.currentTab === 0) {
+      return 122
+    }
+    if (this.currentTab === 1) {
+      return 138
+    }
+    return 114
   }
 
   build() {
@@ -187,7 +201,13 @@ struct Index {
       .titleBar({
         content: {
           title: {
-            mainTitle: this.currentTab === 0 ? this.randomTitle : (this.currentTab === 1 ? '热力图' : '趋势统计')
+            mainTitle: ''
+          },
+          bottomBuilder: {
+            builder: this.currentTab === 0
+              ? this.TodayTitleBottom.bind(this)
+              : (this.currentTab === 1 ? this.HeatmapTitleBottom.bind(this) : this.TrendTitleBottom.bind(this)),
+            height: this.getCurrentBottomBuilderHeight()
           }
         },
         style: {
@@ -200,11 +220,13 @@ struct Index {
             materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
           }
         },
-        avoidLayoutSafeArea: true,
-        enableComponentSafeArea: true
+        avoidLayoutSafeArea: false,
+        enableComponentSafeArea: false
       })
+      .bindToScrollable([this.todayScroller, this.heatmapScroller, this.trendScroller])
       .hideBackButton(true)
       .titleMode(HdsNavigationTitleMode.MINI)
+      .ignoreLayoutSafeArea([LayoutSafeAreaType.SYSTEM], [LayoutSafeAreaEdge.TOP, LayoutSafeAreaEdge.BOTTOM])
       .backgroundColor($r('app.color.page_bg'))
       .width('100%')
       .height('100%')
@@ -460,153 +482,324 @@ struct Index {
     }
     .width('100%')
     .height('100%')
+    .backgroundColor($r('app.color.page_bg'))
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
+  }
+
+  @Builder
+  TodayTitleBottom() {
+    Column({ space: 6 }) {
+      Text(this.getNavigationTitle())
+        .fontSize(24)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(AppColors.TEXT_PRIMARY)
+
+      Text(this.vm?.getTodayDisplay() ?? '')
+        .fontSize(26)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(AppColors.TEXT_PRIMARY)
+
+      Text(this.vm?.getWeekdayDisplay() ?? '')
+        .fontSize(14)
+        .fontColor(AppColors.TEXT_SECONDARY)
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
+    .padding({ left: 24, right: 24, top: 6, bottom: 18 })
+  }
+
+  @Builder
+  HeatmapTitleBottom() {
+    Column({ space: 12 }) {
+      Text('热力图')
+        .fontSize(24)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(AppColors.TEXT_PRIMARY)
+
+      Text('用一眼就能看懂的颜色，回顾这个月的饮食状态')
+        .fontSize(13)
+        .fontColor(AppColors.TEXT_SECONDARY)
+
+      Row() {
+        this.HeatmapNavigationControls()
+      }
+      .width('100%')
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
+    .padding({ left: 24, right: 24, top: 8, bottom: 18 })
+  }
+
+  @Builder
+  TrendTitleBottom() {
+    Column({ space: 12 }) {
+      Row() {
+        Text('趋势统计')
+          .fontSize(24)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(AppColors.TEXT_PRIMARY)
+
+        Blank().layoutWeight(1)
+
+        if (this.testButtonVisible) {
+          Circle({ width: 14, height: 14 })
+            .fill('#FF6B6B')
+            .onClick(() => {
+              this.vibrateLight()
+              this.showTestTools = true
+            })
+        }
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
+
+      Row() {
+        this.TrendNavigationControls()
+      }
+      .width('100%')
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
+    .padding({ left: 16, right: 16, top: 8, bottom: 16 })
+  }
+
+  @Builder
+  HeatmapNavigationControls() {
+    Row() {
+      Row({ space: 4 }) {
+        Text('<')
+          .fontSize(20)
+          .fontColor(AppColors.ACCENT)
+          .padding(8)
+          .onClick(() => {
+            this.vibrateLight()
+            this.heatmapVm?.goToPreviousMonth()
+          })
+
+        Text(this.heatmapVm?.getMonthTitle() ?? '')
+          .fontSize(18)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(AppColors.TEXT_PRIMARY)
+
+        Text('>')
+          .fontSize(20)
+          .fontColor(AppColors.ACCENT)
+          .padding(8)
+          .onClick(() => {
+            this.vibrateLight()
+            this.heatmapVm?.goToNextMonth()
+          })
+      }
+      .alignItems(VerticalAlign.Center)
+
+      Text('今天')
+        .fontSize(13)
+        .fontColor(AppColors.ACCENT)
+        .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+        .borderRadius(14)
+        .backgroundColor('rgba(255,255,255,0.42)')
+        .onClick(() => {
+          this.vibrateLight()
+          this.heatmapVm?.goToToday()
+        })
+    }
+    .width('100%')
+    .justifyContent(FlexAlign.SpaceBetween)
+    .alignItems(VerticalAlign.Center)
+  }
+
+  @Builder
+  TrendNavigationControls() {
+    Row() {
+      Row({ space: 4 }) {
+        Text('<')
+          .fontSize(20)
+          .fontColor(AppColors.ACCENT)
+          .padding(8)
+          .onClick(async () => {
+            this.vibrateLight()
+            await this.trendVm?.goToPrevious()
+            this.refreshTrendChart()
+            this.refreshBodyFatChart()
+          })
+
+        Text(this.trendVm?.getRangeTitle() ?? '')
+          .fontSize(18)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(AppColors.TEXT_PRIMARY)
+
+        Text('>')
+          .fontSize(20)
+          .fontColor(this.trendVm?.isAtLatest() ? AppColors.INPUT_BORDER : AppColors.ACCENT)
+          .padding(8)
+          .onClick(async () => {
+            if (this.trendVm?.isAtLatest()) return
+            this.vibrateLight()
+            await this.trendVm?.goToNext()
+            this.refreshTrendChart()
+            this.refreshBodyFatChart()
+          })
+      }
+      .alignItems(VerticalAlign.Center)
+      .padding({ left: 6, right: 10, top: 4, bottom: 4 })
+      .backgroundColor('rgba(255,255,255,0.42)')
+      .borderRadius(22)
+
+      Row({ space: 8 }) {
+        ForEach(this.trendVm?.getPeriodOptions() ?? [], (option: string, index: number) => {
+          Button(option)
+            .fontSize(14)
+            .fontColor(this.trendVm?.getPeriodIndex() === index ? '#FFFFFF' : AppColors.TEXT_SECONDARY)
+            .backgroundColor(this.trendVm?.getPeriodIndex() === index ? AppColors.ACCENT : 'rgba(255,255,255,0.42)')
+            .width(48)
+            .height(32)
+            .borderRadius(16)
+            .onClick(async () => {
+              await this.trendVm?.setPeriodByIndex(index)
+              this.refreshTrendChart()
+              this.refreshBodyFatChart()
+            })
+        })
+      }
+    }
+    .width('100%')
+    .justifyContent(FlexAlign.SpaceBetween)
+    .alignItems(VerticalAlign.Center)
   }
 
   @Builder
   TodayPage() {
-    Column() {
-      Scroll(this.todayScroller) {
-        Column({ space: 0 }) {
-          Column({ space: 4 }) {
-            Text(this.vm?.getTodayDisplay() ?? '')
-              .fontSize(26)
-              .fontWeight(FontWeight.Bold)
-              .fontColor(AppColors.TEXT_PRIMARY)
+    Scroll(this.todayScroller) {
+      Column({ space: 0 }) {
+        Blank().height(134)
 
-            Text(this.vm?.getWeekdayDisplay() ?? '')
-              .fontSize(14)
-              .fontColor(AppColors.TEXT_SECONDARY)
-          }
-          .width('100%')
-          .alignItems(HorizontalAlign.Start)
-          .padding({ left: 28, right: 28, top: 24, bottom: 20 })
-
-          Column({ space: 20 }) {
-            Row() {
-              Text('昨日饮食')
-                .fontSize(17)
-                .fontWeight(FontWeight.Bold)
-                .fontColor(AppColors.TEXT_PRIMARY)
-
-              Text(this.vm?.getYesterdayDisplay() ?? '')
-                .fontSize(13)
-                .fontColor(AppColors.TEXT_SECONDARY)
-            }
-            .width('100%')
-            .justifyContent(FlexAlign.SpaceBetween)
-
-            MealSegment({
-              title: '早餐',
-              selectedIndex: this.vm?.yesterdayBreakfast ?? -1,
-              onSelect: (index: number | null) => {
-                this.vibrateLight()
-                if (this.vm) {
-                  this.vm.yesterdayBreakfast = index
-                }
-              }
-            })
-
-            MealSegment({
-              title: '午餐',
-              selectedIndex: this.vm?.yesterdayLunch ?? -1,
-              onSelect: (index: number | null) => {
-                this.vibrateLight()
-                if (this.vm) {
-                  this.vm.yesterdayLunch = index
-                }
-              }
-            })
-
-            MealSegment({
-              title: '晚餐',
-              selectedIndex: this.vm?.yesterdayDinner ?? -1,
-              onSelect: (index: number | null) => {
-                this.vibrateLight()
-                if (this.vm) {
-                  this.vm.yesterdayDinner = index
-                }
-              }
-            })
-          }
-          .width('88%')
-          .padding(20)
-          .backgroundColor(AppColors.CARD)
-          .borderRadius(AppDimens.RADIUS_LG)
-          .shadow({
-            radius: AppDimens.SHADOW_RADIUS,
-            color: AppDimens.SHADOW_COLOR,
-            offsetY: AppDimens.SHADOW_OFFSET_Y
-          })
-
-          Column({ space: 16 }) {
-            Text('今日体重')
+        Column({ space: 20 }) {
+          Row() {
+            Text('昨日饮食')
               .fontSize(17)
               .fontWeight(FontWeight.Bold)
               .fontColor(AppColors.TEXT_PRIMARY)
 
-            Row({ space: 12 }) {
-              this.InputField('体重', 'kg', this.vm?.weightText ?? '', (val: string) => {
-                if (this.vm) {
-                  this.vm.weightText = val
-                }
-              })
-
-              this.InputField('体脂率', '%', this.vm?.bodyFatText ?? '', (val: string) => {
-                if (this.vm) {
-                  this.vm.bodyFatText = val
-                }
-              })
-            }
-            .width('100%')
+            Text(this.vm?.getYesterdayDisplay() ?? '')
+              .fontSize(13)
+              .fontColor(AppColors.TEXT_SECONDARY)
           }
-          .width('88%')
-          .padding(20)
-          .margin({ top: 16 })
-          .backgroundColor(AppColors.CARD)
-          .borderRadius(AppDimens.RADIUS_LG)
-          .shadow({
-            radius: AppDimens.SHADOW_RADIUS,
-            color: AppDimens.SHADOW_COLOR,
-            offsetY: AppDimens.SHADOW_OFFSET_Y
+          .width('100%')
+          .justifyContent(FlexAlign.SpaceBetween)
+
+          MealSegment({
+            title: '早餐',
+            selectedIndex: this.vm?.yesterdayBreakfast ?? -1,
+            onSelect: (index: number | null) => {
+              this.vibrateLight()
+              if (this.vm) {
+                this.vm.yesterdayBreakfast = index
+              }
+            }
           })
 
-          Button(this.vm?.isExistingRecord ? '更新记录' : '保存记录')
-            .width('60%')
-            .height(44)
-            .fontSize(15)
-            .fontWeight(FontWeight.Medium)
-            .fontColor('#FFFFFF')
-            .backgroundColor(AppColors.ACCENT)
-            .borderRadius(22)
-            .margin({ left: 24, right: 24, top: 32, bottom: 48 })
-            .enabled(!(this.vm?.isSaving ?? false))
-            .onClick(async () => {
+          MealSegment({
+            title: '午餐',
+            selectedIndex: this.vm?.yesterdayLunch ?? -1,
+            onSelect: (index: number | null) => {
               this.vibrateLight()
-              if (!this.vm) {
-                return
+              if (this.vm) {
+                this.vm.yesterdayLunch = index
               }
-              const validation = this.vm.validateInputs()
-              if (!validation.valid) {
-                promptAction.showToast({ message: validation.message ?? '请检查输入格式', duration: 2000 })
-                return
+            }
+          })
+
+          MealSegment({
+            title: '晚餐',
+            selectedIndex: this.vm?.yesterdayDinner ?? -1,
+            onSelect: (index: number | null) => {
+              this.vibrateLight()
+              if (this.vm) {
+                this.vm.yesterdayDinner = index
               }
-              const success = await this.vm.save()
-              if (success) {
-                promptAction.showToast({ message: '保存成功', duration: 1500 })
-              } else {
-                promptAction.showToast({ message: '保存失败，请重试', duration: 1500 })
+            }
+          })
+        }
+        .width('88%')
+        .padding(20)
+        .backgroundColor(AppColors.CARD)
+        .borderRadius(AppDimens.RADIUS_LG)
+        .shadow({
+          radius: AppDimens.SHADOW_RADIUS,
+          color: AppDimens.SHADOW_COLOR,
+          offsetY: AppDimens.SHADOW_OFFSET_Y
+        })
+
+        Column({ space: 16 }) {
+          Text('今日体重')
+            .fontSize(17)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(AppColors.TEXT_PRIMARY)
+
+          Row({ space: 12 }) {
+            this.InputField('体重', 'kg', this.vm?.weightText ?? '', (val: string) => {
+              if (this.vm) {
+                this.vm.weightText = val
               }
             })
+
+            this.InputField('体脂率', '%', this.vm?.bodyFatText ?? '', (val: string) => {
+              if (this.vm) {
+                this.vm.bodyFatText = val
+              }
+            })
+          }
+          .width('100%')
         }
+        .width('88%')
+        .padding(20)
+        .margin({ top: 16 })
+        .backgroundColor(AppColors.CARD)
+        .borderRadius(AppDimens.RADIUS_LG)
+        .shadow({
+          radius: AppDimens.SHADOW_RADIUS,
+          color: AppDimens.SHADOW_COLOR,
+          offsetY: AppDimens.SHADOW_OFFSET_Y
+        })
+
+        Button(this.vm?.isExistingRecord ? '更新记录' : '保存记录')
+          .width('60%')
+          .height(44)
+          .fontSize(15)
+          .fontWeight(FontWeight.Medium)
+          .fontColor('#FFFFFF')
+          .backgroundColor(AppColors.ACCENT)
+          .borderRadius(22)
+          .margin({ left: 24, right: 24, top: 32, bottom: 48 })
+          .enabled(!(this.vm?.isSaving ?? false))
+          .onClick(async () => {
+            this.vibrateLight()
+            if (!this.vm) {
+              return
+            }
+            const validation = this.vm.validateInputs()
+            if (!validation.valid) {
+              promptAction.showToast({ message: validation.message ?? '请检查输入格式', duration: 2000 })
+              return
+            }
+            const success = await this.vm.save()
+            if (success) {
+              promptAction.showToast({ message: '保存成功', duration: 1500 })
+            } else {
+              promptAction.showToast({ message: '保存失败，请重试', duration: 1500 })
+            }
+          })
+
+        Column().height(112)
       }
-      .scrollable(ScrollDirection.Vertical)
-      .edgeEffect(EdgeEffect.Spring)
-      .clipContent(ContentClipMode.SAFE_AREA)
-      .layoutWeight(1)
+      .width('100%')
+      .alignItems(HorizontalAlign.Center)
     }
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_bg'))
+    .scrollable(ScrollDirection.Vertical)
+    .edgeEffect(EdgeEffect.Spring)
   }
 
   @Builder
@@ -648,48 +841,8 @@ struct Index {
   @Builder
   HeatmapPage() {
     Scroll(this.heatmapScroller) {
-      Column() {
-        Row() {
-          Row({ space: 4 }) {
-            Text('<')
-              .fontSize(20)
-              .fontColor(AppColors.ACCENT)
-              .padding(8)
-              .onClick(() => {
-                this.vibrateLight()
-                this.heatmapVm?.goToPreviousMonth()
-              })
-
-            Text(this.heatmapVm?.getMonthTitle() ?? '')
-              .fontSize(22)
-              .fontWeight(FontWeight.Bold)
-              .fontColor(AppColors.TEXT_PRIMARY)
-
-            Text('>')
-              .fontSize(20)
-              .fontColor(AppColors.ACCENT)
-              .padding(8)
-              .onClick(() => {
-                this.vibrateLight()
-                this.heatmapVm?.goToNextMonth()
-              })
-          }
-          .alignItems(VerticalAlign.Center)
-
-          Text('今天')
-            .fontSize(13)
-            .fontColor(AppColors.ACCENT)
-            .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-            .borderRadius(14)
-            .backgroundColor(AppColors.ACCENT_LIGHT)
-            .onClick(() => {
-              this.vibrateLight()
-              this.heatmapVm?.goToToday()
-            })
-        }
-        .width('100%')
-        .justifyContent(FlexAlign.SpaceBetween)
-        .padding({ left: 24, right: 24, top: 24, bottom: 20 })
+      Column({ space: 0 }) {
+        Blank().height(46)
 
         Row({ space: 8 }) {
           Text('清淡')
@@ -710,7 +863,7 @@ struct Index {
             .fontSize(11)
             .fontColor(AppColors.TEXT_SECONDARY)
         }
-        .padding({ left: 24, right: 24, bottom: 28 })
+        .padding({ left: 24, right: 24, top: 6, bottom: 28 })
 
         Column({ space: 0 }) {
           Row() {
@@ -824,12 +977,12 @@ struct Index {
         Column().height(120)
       }
       .width('100%')
+      .alignItems(HorizontalAlign.Center)
     }
-    .edgeEffect(EdgeEffect.Spring)
-    .clipContent(ContentClipMode.SAFE_AREA)
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_bg'))
+    .edgeEffect(EdgeEffect.Spring)
   }
 
   @Builder
@@ -876,75 +1029,8 @@ struct Index {
   @Builder
   TrendPage() {
     Scroll(this.trendScroller) {
-      Column() {
-        Row() {
-          Blank().layoutWeight(1)
-
-          if (this.testButtonVisible) {
-            Circle({ width: 14, height: 14 })
-              .fill('#FF6B6B')
-              .onClick(() => {
-                this.vibrateLight()
-                this.showTestTools = true
-              })
-          }
-        }
-        .width('100%')
-        .alignItems(VerticalAlign.Center)
-        .padding({ left: 24, right: 24, top: 16, bottom: 16 })
-
-        Row() {
-          Row({ space: 4 }) {
-            Text('<')
-              .fontSize(20)
-              .fontColor(AppColors.ACCENT)
-              .padding(8)
-              .onClick(async () => {
-                this.vibrateLight()
-                await this.trendVm?.goToPrevious()
-                this.refreshTrendChart()
-                this.refreshBodyFatChart()
-              })
-
-            Text(this.trendVm?.getRangeTitle() ?? '')
-              .fontSize(16)
-              .fontWeight(FontWeight.Medium)
-              .fontColor(AppColors.TEXT_PRIMARY)
-
-            Text('>')
-              .fontSize(20)
-              .fontColor(this.trendVm?.isAtLatest() ? AppColors.INPUT_BORDER : AppColors.ACCENT)
-              .padding(8)
-              .onClick(async () => {
-                if (this.trendVm?.isAtLatest()) return
-                this.vibrateLight()
-                await this.trendVm?.goToNext()
-                this.refreshTrendChart()
-                this.refreshBodyFatChart()
-              })
-          }
-          .alignItems(VerticalAlign.Center)
-
-          Row({ space: 8 }) {
-            ForEach(this.trendVm?.getPeriodOptions() ?? [], (option: string, index: number) => {
-              Button(option)
-                .fontSize(14)
-                .fontColor(this.trendVm?.getPeriodIndex() === index ? '#FFFFFF' : AppColors.TEXT_SECONDARY)
-                .backgroundColor(this.trendVm?.getPeriodIndex() === index ? AppColors.ACCENT : AppColors.CARD)
-                .width(48)
-                .height(32)
-                .borderRadius(16)
-                .onClick(async () => {
-                  await this.trendVm?.setPeriodByIndex(index)
-                  this.refreshTrendChart()
-                  this.refreshBodyFatChart()
-                })
-            })
-          }
-        }
-        .width('100%')
-        .justifyContent(FlexAlign.SpaceBetween)
-        .padding({ left: 16, right: 16, bottom: 20 })
+      Column({ space: 0 }) {
+        Blank().height(172)
 
         Column({ space: 12 }) {
           Row() {
@@ -1109,11 +1195,10 @@ struct Index {
       .width('100%')
       .alignItems(HorizontalAlign.Center)
     }
-    .edgeEffect(EdgeEffect.Spring)
-    .clipContent(ContentClipMode.SAFE_AREA)
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_bg'))
+    .edgeEffect(EdgeEffect.Spring)
   }
 
   private drawTrendChart(): void {
