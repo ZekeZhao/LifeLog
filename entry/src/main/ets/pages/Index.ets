@@ -60,7 +60,7 @@ struct Index {
   // 测试工具相关状态
   @Local testButtonVisible: boolean = false  // 按钮是否显示
   @Local showTestTools: boolean = false       // 弹窗是否显示
-  private trendTabClickCount: number = 0
+  @Local private trendTabClickCount: number = 0
   @Local showDateEditDialog: boolean = false
   @Local editDateText: string = ''
   @Local editingRecord: DailyRecord | null = null
@@ -112,6 +112,18 @@ struct Index {
       this.refreshBodyFatChart()
     }
     this.trendVm.loadTrend('week')
+  }
+
+  private registerTrendDebugTap(): void {
+    if (this.testButtonVisible) {
+      return
+    }
+
+    this.trendTabClickCount++
+    if (this.trendTabClickCount >= 10) {
+      this.testButtonVisible = true
+      promptAction.showToast({ message: '测试工具已解锁', duration: 1500 })
+    }
   }
 
   private getNavigationTitle(): string {
@@ -187,10 +199,7 @@ struct Index {
         .onChange((index: number) => {
           this.currentTab = index
           if (index === 2) {
-            this.trendTabClickCount++
-            if (this.trendTabClickCount >= 10) {
-              this.testButtonVisible = true
-            }
+            this.registerTrendDebugTap()
           } else {
             this.trendTabClickCount = 0
           }
@@ -552,6 +561,10 @@ struct Index {
       }
       .width('100%')
       .alignItems(VerticalAlign.Center)
+      .onClick(() => {
+        this.vibrateLight()
+        this.registerTrendDebugTap()
+      })
 
       Row() {
         this.TrendNavigationControls()
@@ -610,7 +623,7 @@ struct Index {
 
   @Builder
   TrendNavigationControls() {
-    Row() {
+    Row({ space: 10 }) {
       Row({ space: 4 }) {
         Text('<')
           .fontSize(20)
@@ -624,7 +637,7 @@ struct Index {
           })
 
         Text(this.trendVm?.getRangeTitle() ?? '')
-          .fontSize(18)
+          .fontSize(16)
           .fontWeight(FontWeight.Medium)
           .fontColor(AppColors.TEXT_PRIMARY)
 
@@ -640,20 +653,22 @@ struct Index {
             this.refreshBodyFatChart()
           })
       }
+      .layoutWeight(1)
+      .justifyContent(FlexAlign.Center)
       .alignItems(VerticalAlign.Center)
       .padding({ left: 6, right: 10, top: 4, bottom: 4 })
       .backgroundColor('rgba(255,255,255,0.42)')
       .borderRadius(22)
 
-      Row({ space: 8 }) {
+      Row({ space: 6 }) {
         ForEach(this.trendVm?.getPeriodOptions() ?? [], (option: string, index: number) => {
           Button(option)
-            .fontSize(14)
+            .fontSize(13)
             .fontColor(this.trendVm?.getPeriodIndex() === index ? '#FFFFFF' : AppColors.TEXT_SECONDARY)
             .backgroundColor(this.trendVm?.getPeriodIndex() === index ? AppColors.ACCENT : 'rgba(255,255,255,0.42)')
-            .width(48)
-            .height(32)
-            .borderRadius(16)
+            .width(52)
+            .height(36)
+            .borderRadius(18)
             .onClick(async () => {
               await this.trendVm?.setPeriodByIndex(index)
               this.refreshTrendChart()
@@ -2129,6 +2144,8 @@ struct Index {
       color: 'rgba(0,0,0,0.15)',
       offsetY: 6
     })
+    .position({ x: '50%', y: '50%' })
+    .translate({ x: '-50%', y: '-50%' })
     .zIndex(13)
     .transition(
       TransitionEffect.OPACITY

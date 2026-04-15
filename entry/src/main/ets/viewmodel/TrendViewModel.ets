@@ -192,7 +192,7 @@ export class TrendViewModel {
     const endDay = end.getDate()
 
     if (this.period === 'year') {
-      return `${start.getFullYear()}年${startMonth}月 - ${end.getFullYear()}年${endMonth}月`
+      return `${start.getFullYear()}.${startMonth} - ${end.getFullYear()}.${endMonth}`
     }
 
     if (startMonth === endMonth) {
