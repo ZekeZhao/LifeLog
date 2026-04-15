@@ -1,6 +1,6 @@
-import { DailyRecordDao } from '../database/DailyRecordDao'
 import { DailyRecord } from '../model/DailyRecord'
 import { AppColors, MealLevel } from '../common/Constants'
+import { DailyRecordRepository, getDailyRecordRepository } from '../repository/DailyRecordRepository'
 
 export type TrendPeriod = 'week' | 'month' | 'year'
 
@@ -59,10 +59,10 @@ export class TrendViewModel {
   @Trace selectedPoint: TrendDataPoint | null = null
   @Trace showPointDetail: boolean = false
 
-  private dao: DailyRecordDao
+  private repository: DailyRecordRepository
 
   constructor(context: Context) {
-    this.dao = new DailyRecordDao(context)
+    this.repository = getDailyRecordRepository(context)
   }
 
   async loadTrend(period: TrendPeriod): Promise<void> {
@@ -164,7 +164,7 @@ export class TrendViewModel {
     this.isLoading = true
 
     const dateRange: DateRange = this.getDateRange(this.period)
-    const records = await this.dao.queryByDateRange(dateRange.startDate, dateRange.endDate)
+    const records = await this.repository.queryByDateRange(dateRange.startDate, dateRange.endDate)
 
     // Process records into data points
     this.dataPoints = this.processRecords(records, dateRange.startDate, dateRange.endDate)
@@ -551,7 +551,7 @@ export class TrendViewModel {
     
     // 批量保存记录
     for (const record of records) {
-      await this.dao.upsert(record)
+      await this.repository.save(record)
     }
     
     // 刷新当前趋势数据
@@ -565,7 +565,7 @@ export class TrendViewModel {
    * @returns 删除的记录数量
    */
   async clearAllData(): Promise<number> {
-    const deletedCount = await this.dao.deleteAll()
+    const deletedCount = await this.repository.deleteAll()
     
     // 清空当前数据
     this.dataPoints = []
@@ -580,7 +580,7 @@ export class TrendViewModel {
    * @returns 记录或null
    */
   async queryByDate(date: string): Promise<DailyRecord | null> {
-    return await this.dao.queryByDate(date)
+    return await this.repository.queryByDate(date)
   }
 
   /**
@@ -588,7 +588,7 @@ export class TrendViewModel {
    * @param record 记录对象
    */
   async saveRecord(record: DailyRecord): Promise<void> {
-    await this.dao.upsert(record)
+    await this.repository.save(record)
     // 刷新当前趋势数据
     await this.loadTrend(this.period)
   }
@@ -599,10 +599,15 @@ export class TrendViewModel {
    * @returns 是否删除成功
    */
   async deleteRecord(date: string): Promise<boolean> {
-    const result = await this.dao.deleteByDate(date)
+    const result = await this.repository.deleteByDate(date)
     if (result) {
       await this.loadTrend(this.period)
     }
     return result
+  }
+
+  async syncWithCloud(): Promise<void> {
+    await this.repository.syncWithCloud()
+    await this.loadTrend(this.period)
   }
 }

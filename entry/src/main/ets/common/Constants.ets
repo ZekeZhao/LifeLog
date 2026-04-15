@@ -40,5 +40,13 @@ export class ValidationRanges {
   static readonly BODY_FAT_MAX: number = 60
 }
 
+export enum SyncStatus {
+  LOCAL_ONLY = 0,
+  PENDING_UPLOAD = 1,
+  SYNCED = 2,
+  SYNC_FAILED = 3
+}
+
 export const DB_NAME = 'lifelog.db'
 export const TABLE_DAILY_RECORD = 'daily_record'
+export const TABLE_APP_SESSION = 'app_session'

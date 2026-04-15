@@ -1,7 +1,8 @@
 import { AppColors, AppDimens, MEAL_LABELS } from '../common/Constants'
-import { TodayViewModel, ValidationResult } from '../viewmodel/TodayViewModel'
+import { TodayViewModel } from '../viewmodel/TodayViewModel'
 import { HeatmapViewModel, HeatmapWeek, HeatmapCell } from '../viewmodel/HeatmapViewModel'
 import { TrendViewModel } from '../viewmodel/TrendViewModel'
+import { AuthViewModel } from '../viewmodel/AuthViewModel'
 import { DailyRecord, createEmptyRecord } from '../model/DailyRecord'
 import { MealSegment } from '../view/MealSegment'
 import { promptAction, Animator, AnimatorResult, SymbolGlyphModifier } from '@kit.ArkUI'
@@ -39,6 +40,7 @@ struct Index {
   @Local vm: TodayViewModel | null = null
   @Local heatmapVm: HeatmapViewModel | null = null
   @Local trendVm: TrendViewModel | null = null
+  @Local authVm: AuthViewModel | null = null
   @Local randomTitle: string = ''
   private trendChartContext: CanvasRenderingContext2D = new CanvasRenderingContext2D()
   private bodyFatChartContext: CanvasRenderingContext2D = new CanvasRenderingContext2D()
@@ -76,6 +78,7 @@ struct Index {
   @Local heatmapEditDinner: number = -1
   @Local heatmapEditWeightText: string = ''
   @Local heatmapEditBodyFatText: string = ''
+  @Local showAuthDialog: boolean = false
 
   // Light vibration feedback
   private vibrateLight(): void {
@@ -100,18 +103,48 @@ struct Index {
     this.randomTitle = titles[Math.floor(Math.random() * titles.length)]
     const context = getContext(this)
     this.vm = new TodayViewModel(context)
-    this.vm.loadToday()
     this.heatmapVm = new HeatmapViewModel(context)
-    this.heatmapVm.loadMonth(new Date().getFullYear(), new Date().getMonth() + 1)
+    this.authVm = new AuthViewModel(context)
     this.vm.onDataSaved = () => {
       this.heatmapVm?.loadMonth(this.heatmapVm.year, this.heatmapVm.month)
+      this.trendVm?.loadTrend(this.trendVm.period)
     }
     this.trendVm = new TrendViewModel(context)
     this.trendVm.onDataLoaded = () => {
       this.refreshTrendChart()
       this.refreshBodyFatChart()
     }
-    this.trendVm.loadTrend('week')
+    void this.initializePage()
+  }
+
+  private async initializePage(): Promise<void> {
+    await this.vm?.loadToday()
+    await this.heatmapVm?.loadMonth(new Date().getFullYear(), new Date().getMonth() + 1)
+    await this.trendVm?.loadTrend('week')
+
+    const restored = await this.authVm?.restoreSession()
+    if (restored) {
+      await this.syncCloudData(false)
+    }
+  }
+
+  private async syncCloudData(showFeedback: boolean = false): Promise<void> {
+    try {
+      await this.vm?.syncWithCloud()
+      if (this.heatmapVm) {
+        await this.heatmapVm.loadMonth(this.heatmapVm.year, this.heatmapVm.month)
+      }
+      if (this.trendVm) {
+        await this.trendVm.loadTrend(this.trendVm.period)
+      }
+      if (showFeedback) {
+        promptAction.showToast({ message: '同步完成', duration: 1500 })
+      }
+    } catch (_err) {
+      if (showFeedback) {
+        promptAction.showToast({ message: '同步失败，请稍后重试', duration: 2000 })
+      }
+    }
   }
 
   private registerTrendDebugTap(): void {
@@ -352,6 +385,10 @@ struct Index {
         this.DateEditDialog()
       }
 
+      if (this.showAuthDialog) {
+        this.AuthDialog()
+      }
+
       // 图表点详情弹窗（放在外层Stack）
       if (this.trendVm?.showPointDetail) {
         Column()
@@ -498,19 +535,39 @@ struct Index {
   @Builder
   TodayTitleBottom() {
     Column({ space: 6 }) {
-      Text(this.getNavigationTitle())
-        .fontSize(24)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(AppColors.TEXT_PRIMARY)
+      Row() {
+        Column({ space: 6 }) {
+          Text(this.getNavigationTitle())
+            .fontSize(24)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(AppColors.TEXT_PRIMARY)
 
-      Text(this.vm?.getTodayDisplay() ?? '')
-        .fontSize(26)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(AppColors.TEXT_PRIMARY)
+          Text(this.vm?.getTodayDisplay() ?? '')
+            .fontSize(26)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(AppColors.TEXT_PRIMARY)
 
-      Text(this.vm?.getWeekdayDisplay() ?? '')
-        .fontSize(14)
-        .fontColor(AppColors.TEXT_SECONDARY)
+          Text(this.vm?.getWeekdayDisplay() ?? '')
+            .fontSize(14)
+            .fontColor(AppColors.TEXT_SECONDARY)
+        }
+        .alignItems(HorizontalAlign.Start)
+
+        Blank().layoutWeight(1)
+
+        Text(this.authVm?.isLoggedIn ? '已连接' : '登录同步')
+          .fontSize(13)
+          .fontColor(this.authVm?.isLoggedIn ? '#FFFFFF' : AppColors.ACCENT)
+          .padding({ left: 12, right: 12, top: 8, bottom: 8 })
+          .borderRadius(18)
+          .backgroundColor(this.authVm?.isLoggedIn ? AppColors.ACCENT : 'rgba(255,255,255,0.42)')
+          .onClick(() => {
+            this.vibrateLight()
+            this.showAuthDialog = true
+          })
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
@@ -686,7 +743,9 @@ struct Index {
   TodayPage() {
     Scroll(this.todayScroller) {
       Column({ space: 0 }) {
-        Blank().height(134)
+        Blank().height(174)
+
+        this.SyncStatusCard()
 
         Column({ space: 20 }) {
           Row() {
@@ -736,6 +795,7 @@ struct Index {
           })
         }
         .width('88%')
+        .margin({ bottom: 16 })
         .padding(20)
         .backgroundColor(AppColors.CARD)
         .borderRadius(AppDimens.RADIUS_LG)
@@ -768,7 +828,7 @@ struct Index {
         }
         .width('88%')
         .padding(20)
-        .margin({ top: 16 })
+        .margin({ top: 0 })
         .backgroundColor(AppColors.CARD)
         .borderRadius(AppDimens.RADIUS_LG)
         .shadow({
@@ -851,6 +911,270 @@ struct Index {
       .border({ width: 1, color: AppColors.INPUT_BORDER })
     }
     .layoutWeight(1)
+  }
+
+  @Builder
+  SyncStatusCard() {
+    Column({ space: 14 }) {
+      Row() {
+        Column({ space: 4 }) {
+          Text('云端同步')
+            .fontSize(17)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(AppColors.TEXT_PRIMARY)
+
+          Text(this.authVm?.isLoggedIn
+            ? `已连接 ${this.authVm?.currentEmail ?? ''}`
+            : '使用邮箱验证码登录后，可在新设备自动同步')
+            .fontSize(13)
+            .fontColor(AppColors.TEXT_SECONDARY)
+        }
+        .alignItems(HorizontalAlign.Start)
+
+        Blank().layoutWeight(1)
+
+        Text(this.authVm?.statusText ?? '未登录')
+          .fontSize(12)
+          .fontColor(this.authVm?.isLoggedIn ? AppColors.HEATMAP_GREEN : AppColors.TEXT_SECONDARY)
+          .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+          .backgroundColor($r('app.color.page_bg'))
+          .borderRadius(14)
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
+
+      Row({ space: 10 }) {
+        Button(this.authVm?.isLoggedIn ? '立即同步' : '邮箱登录')
+          .fontSize(14)
+          .fontColor('#FFFFFF')
+          .backgroundColor(AppColors.ACCENT)
+          .layoutWeight(1)
+          .height(40)
+          .borderRadius(20)
+          .enabled(!(this.authVm?.isLoading ?? false))
+          .onClick(async () => {
+            this.vibrateLight()
+            if (this.authVm?.isLoggedIn) {
+              await this.syncCloudData(true)
+            } else {
+              this.showAuthDialog = true
+            }
+          })
+
+        if (this.authVm?.isLoggedIn) {
+          Button('账号')
+            .fontSize(14)
+            .fontColor(AppColors.TEXT_PRIMARY)
+            .backgroundColor($r('app.color.page_bg'))
+            .layoutWeight(1)
+            .height(40)
+            .borderRadius(20)
+            .border({ width: 1, color: AppColors.INPUT_BORDER })
+            .onClick(() => {
+              this.vibrateLight()
+              this.showAuthDialog = true
+            })
+        }
+      }
+      .width('100%')
+    }
+    .width('88%')
+    .padding(20)
+    .margin({ bottom: 16 })
+    .backgroundColor(AppColors.CARD)
+    .borderRadius(AppDimens.RADIUS_LG)
+    .shadow({
+      radius: AppDimens.SHADOW_RADIUS,
+      color: AppDimens.SHADOW_COLOR,
+      offsetY: AppDimens.SHADOW_OFFSET_Y
+    })
+  }
+
+  @Builder
+  AuthInfoRow(label: string, value: string) {
+    Row() {
+      Text(label)
+        .fontSize(14)
+        .fontColor(AppColors.TEXT_SECONDARY)
+
+      Text(value)
+        .fontSize(14)
+        .fontColor(AppColors.TEXT_PRIMARY)
+        .fontWeight(FontWeight.Medium)
+        .layoutWeight(1)
+        .textAlign(TextAlign.End)
+    }
+    .width('100%')
+    .alignItems(VerticalAlign.Center)
+  }
+
+  @Builder
+  AuthTextField(label: string, placeholder: string, value: string, onChange: (val: string) => void, isOtp: boolean = false) {
+    Column({ space: 8 }) {
+      Text(label)
+        .fontSize(14)
+        .fontColor(AppColors.TEXT_SECONDARY)
+
+      if (isOtp) {
+        TextInput({ text: value, placeholder: placeholder })
+          .type(InputType.NUMBER_DECIMAL)
+          .fontSize(15)
+          .fontColor(AppColors.TEXT_PRIMARY)
+          .placeholderColor(AppColors.INPUT_BORDER)
+          .width('100%')
+          .height(44)
+          .padding({ left: 12, right: 12 })
+          .borderRadius(12)
+          .backgroundColor($r('app.color.page_bg'))
+          .border({ width: 1, color: AppColors.INPUT_BORDER })
+          .onChange((text: string) => {
+            onChange(text)
+          })
+      } else {
+        TextInput({ text: value, placeholder: placeholder })
+          .fontSize(15)
+          .fontColor(AppColors.TEXT_PRIMARY)
+          .placeholderColor(AppColors.INPUT_BORDER)
+          .width('100%')
+          .height(44)
+          .padding({ left: 12, right: 12 })
+          .borderRadius(12)
+          .backgroundColor($r('app.color.page_bg'))
+          .border({ width: 1, color: AppColors.INPUT_BORDER })
+          .onChange((text: string) => {
+            onChange(text)
+          })
+      }
+    }
+    .width('100%')
+  }
+
+  @Builder
+  AuthDialog() {
+    Stack({ alignContent: Alignment.Center }) {
+      Column()
+        .width('100%')
+        .height('100%')
+        .backdropBlur(20)
+        .backgroundColor('rgba(0,0,0,0.15)')
+        .onClick(() => {
+          this.showAuthDialog = false
+        })
+        .zIndex(10)
+
+      Column({ space: 16 }) {
+        Text(this.authVm?.isLoggedIn ? '同步账号' : '邮箱登录同步')
+          .fontSize(18)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(AppColors.TEXT_PRIMARY)
+
+        Divider().color(AppColors.DIVIDER)
+
+        if (this.authVm?.isLoggedIn) {
+          Column({ space: 12 }) {
+            this.AuthInfoRow('当前邮箱', this.authVm?.currentEmail ?? '--')
+
+            Button('立即同步')
+              .fontSize(14)
+              .fontColor('#FFFFFF')
+              .backgroundColor(AppColors.ACCENT)
+              .width('100%')
+              .height(44)
+              .borderRadius(12)
+              .enabled(!(this.authVm?.isLoading ?? false))
+              .onClick(async () => {
+                this.vibrateLight()
+                await this.syncCloudData(true)
+                this.showAuthDialog = false
+              })
+
+            Button('退出登录')
+              .fontSize(14)
+              .fontColor(AppColors.TEXT_PRIMARY)
+              .backgroundColor($r('app.color.page_bg'))
+              .width('100%')
+              .height(44)
+              .borderRadius(12)
+              .border({ width: 1, color: AppColors.INPUT_BORDER })
+              .onClick(async () => {
+                this.vibrateLight()
+                await this.authVm?.signOut()
+                this.showAuthDialog = false
+                promptAction.showToast({ message: '已退出登录', duration: 1500 })
+              })
+          }
+        } else {
+          Column({ space: 12 }) {
+            Text('输入邮箱后获取验证码，登录成功后会自动同步到当前账号。')
+              .fontSize(13)
+              .fontColor(AppColors.TEXT_SECONDARY)
+              .width('100%')
+
+            this.AuthTextField('邮箱地址', 'name@example.com', this.authVm?.emailText ?? '', (value: string) => {
+              if (this.authVm) {
+                this.authVm.emailText = value
+              }
+            })
+
+            if (this.authVm?.otpRequested) {
+              this.AuthTextField('验证码', '输入 6 位验证码', this.authVm?.otpText ?? '', (value: string) => {
+                if (this.authVm) {
+                  this.authVm.otpText = value
+                }
+              }, true)
+            }
+
+            if ((this.authVm?.errorMessage ?? '').length > 0) {
+              Text(this.authVm?.errorMessage ?? '')
+                .fontSize(12)
+                .fontColor('#D35233')
+                .width('100%')
+            }
+
+            Button(this.authVm?.otpRequested ? '验证并登录' : '发送验证码')
+              .fontSize(14)
+              .fontColor('#FFFFFF')
+              .backgroundColor(AppColors.ACCENT)
+              .width('100%')
+              .height(44)
+              .borderRadius(12)
+              .enabled(!(this.authVm?.isLoading ?? false))
+              .onClick(async () => {
+                this.vibrateLight()
+                if (!this.authVm?.otpRequested) {
+                  const sent = await this.authVm?.requestOtp()
+                  if (sent) {
+                    promptAction.showToast({ message: '验证码已发送，请检查邮箱', duration: 2000 })
+                  } else if ((this.authVm?.errorMessage ?? '').length > 0) {
+                    promptAction.showToast({ message: this.authVm?.errorMessage ?? '发送失败', duration: 2000 })
+                  }
+                } else {
+                  const verified = await this.authVm?.verifyOtp()
+                  if (verified) {
+                    this.showAuthDialog = false
+                    promptAction.showToast({ message: '登录成功，正在同步', duration: 1500 })
+                    await this.syncCloudData(false)
+                  } else if ((this.authVm?.errorMessage ?? '').length > 0) {
+                    promptAction.showToast({ message: this.authVm?.errorMessage ?? '验证失败', duration: 2000 })
+                  }
+                }
+              })
+          }
+        }
+      }
+      .width(320)
+      .padding(24)
+      .backgroundColor(AppColors.CARD)
+      .borderRadius(20)
+      .shadow({
+        radius: 20,
+        color: 'rgba(0,0,0,0.15)',
+        offsetY: 6
+      })
+      .zIndex(13)
+    }
+    .width('100%')
+    .height('100%')
   }
 
   @Builder
@@ -2345,7 +2669,7 @@ struct Index {
               bodyFat: bodyFat
             }
 
-            await this.vm?.dao.upsert(record)
+            await this.trendVm?.saveRecord(record)
             this.heatmapVm?.closeEditDialog()
             this.heatmapVm?.closeDetailDialog()
             // 刷新热力图

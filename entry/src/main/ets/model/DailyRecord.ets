@@ -5,6 +5,10 @@ export interface DailyRecord {
   dinner: number | null
   weight: number | null // kg
   bodyFat: number | null // %
+  userId?: string | null
+  createdAt?: string | null
+  updatedAt?: string | null
+  syncStatus?: number
 }
 
 export function createEmptyRecord(date: string): DailyRecord {
@@ -14,8 +18,16 @@ export function createEmptyRecord(date: string): DailyRecord {
     lunch: null,
     dinner: null,
     weight: null,
-    bodyFat: null
+    bodyFat: null,
+    userId: null,
+    createdAt: null,
+    updatedAt: null,
+    syncStatus: 0
   } as DailyRecord
+}
+
+export function getCurrentTimestampString(): string {
+  return new Date().toISOString()
 }
 
 export function getTodayDateString(): string {

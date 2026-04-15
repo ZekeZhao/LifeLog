@@ -1,6 +1,6 @@
-import { DailyRecordDao } from '../database/DailyRecordDao'
 import { DailyRecord } from '../model/DailyRecord'
 import { AppColors, MealLevel } from '../common/Constants'
+import { DailyRecordRepository, getDailyRecordRepository } from '../repository/DailyRecordRepository'
 
 export interface HeatmapCell {
   date: string
@@ -38,11 +38,11 @@ export class HeatmapViewModel {
   @Trace editingRecord: HeatmapCell | null = null
   @Trace summary: MonthSummary = { totalDays: 0, recordedDays: 0, healthyDays: 0 } as MonthSummary
 
-  private dao: DailyRecordDao
+  private repository: DailyRecordRepository
   private recordsMap: Map<string, DailyRecord> = new Map()
 
   constructor(context: Context) {
-    this.dao = new DailyRecordDao(context)
+    this.repository = getDailyRecordRepository(context)
   }
 
   getMonthTitle(): string {
@@ -66,7 +66,7 @@ export class HeatmapViewModel {
     const lastDay = new Date(year, month, 0).getDate()
     const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
-    const records = await this.dao.queryByDateRange(startDate, endDate)
+    const records = await this.repository.queryByDateRange(startDate, endDate)
     this.recordsMap.clear()
     records.forEach((r: DailyRecord) => this.recordsMap.set(r.date, r))
 

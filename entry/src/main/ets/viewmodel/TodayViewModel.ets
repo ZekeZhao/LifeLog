@@ -1,6 +1,6 @@
-import { DailyRecordDao } from '../database/DailyRecordDao'
-import { DailyRecord, createEmptyRecord, getTodayDateString } from '../model/DailyRecord'
+import { DailyRecord, getTodayDateString } from '../model/DailyRecord'
 import { ValidationRanges } from '../common/Constants'
+import { getDailyRecordRepository, DailyRecordRepository } from '../repository/DailyRecordRepository'
 
 export class ValidationResult {
   valid: boolean
@@ -36,7 +36,7 @@ export class TodayViewModel {
   @Trace yesterdayLunch: number | null = null
   @Trace yesterdayDinner: number | null = null
 
-  dao: DailyRecordDao
+  repository: DailyRecordRepository
   private todayDate: string = getTodayDateString()
   private yesterdayDate: string = getYesterdayDateString()
 
@@ -44,7 +44,7 @@ export class TodayViewModel {
   onDataSaved: (() => void) | null = null
 
   constructor(context: Context) {
-    this.dao = new DailyRecordDao(context)
+    this.repository = getDailyRecordRepository(context)
   }
 
   async loadToday(): Promise<void> {
@@ -52,7 +52,7 @@ export class TodayViewModel {
     this.yesterdayDate = getYesterdayDateString()
 
     // Load today's body data
-    const todayRecord = await this.dao.queryByDate(this.todayDate)
+    const todayRecord = await this.repository.queryByDate(this.todayDate)
     if (todayRecord !== null) {
       this.weightText = todayRecord.weight !== null ? todayRecord.weight.toString() : ''
       this.bodyFatText = todayRecord.bodyFat !== null ? todayRecord.bodyFat.toString() : ''
@@ -64,7 +64,7 @@ export class TodayViewModel {
     }
 
     // Load yesterday's meal data
-    const yesterdayRecord = await this.dao.queryByDate(this.yesterdayDate)
+    const yesterdayRecord = await this.repository.queryByDate(this.yesterdayDate)
     if (yesterdayRecord !== null) {
       this.yesterdayBreakfast = yesterdayRecord.breakfast
       this.yesterdayLunch = yesterdayRecord.lunch
@@ -122,7 +122,7 @@ export class TodayViewModel {
         weight: weight,
         bodyFat: bodyFat,
       }
-      await this.dao.upsert(todayRecord)
+      await this.repository.save(todayRecord)
 
       // Save yesterday's meal data
       const yesterdayRecord: DailyRecord = {
@@ -133,7 +133,7 @@ export class TodayViewModel {
         weight: null,
         bodyFat: null,
       }
-      await this.dao.upsert(yesterdayRecord)
+      await this.repository.save(yesterdayRecord)
 
       this.isExistingRecord = true
       this.showSaveSuccess = true
@@ -163,5 +163,10 @@ export class TodayViewModel {
   getYesterdayDisplay(): string {
     const parts = this.yesterdayDate.split('-')
     return `${parts[0]} 年 ${parseInt(parts[1])} 月 ${parseInt(parts[2])} 日`
+  }
+
+  async syncWithCloud(): Promise<void> {
+    await this.repository.syncWithCloud()
+    await this.loadToday()
   }
 }
